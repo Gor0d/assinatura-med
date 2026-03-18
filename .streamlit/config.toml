@@ -1,4 +1,3 @@
 [server]
-port = 5001
 headless = true
 enableCORS = false
