@@ -16,14 +16,14 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 # Altura padrão (px) para normalizar todas as assinaturas
-TARGET_HEIGHT = 200
+TARGET_HEIGHT = 260
 
 # Proporções em relação à altura da assinatura normalizada
-FONT_NOME_RATIO   = 0.20   # tamanho da fonte do nome
-FONT_INFO_RATIO   = 0.17   # tamanho da fonte dos demais campos
-SPACING_RATIO     = 0.05   # espaço entre linhas
-PADDING_RATIO     = 0.20   # padding externo
-GAP_RATIO         = 0.20   # espaço entre assinatura e texto
+FONT_NOME_RATIO   = 0.15   # tamanho da fonte do nome
+FONT_INFO_RATIO   = 0.13   # tamanho da fonte dos demais campos
+SPACING_RATIO     = 0.04   # espaço entre linhas
+PADDING_RATIO     = 0.18   # padding externo
+GAP_RATIO         = 0.18   # espaço entre assinatura e texto
 
 # Cor
 BG_COLOR   = (255, 255, 255)
