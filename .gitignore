@@ -3,6 +3,6 @@ __pycache__/
 *.pyo
 assinatura_teste.png
 resultado_*.png
-*.jpg
 *.jpeg
+!logo.jpg
 .env

@@ -22,23 +22,29 @@ if "nome_usuario" not in st.session_state:
 
 
 def tela_login():
-    st.title("Assinatura Médica Digital")
-    st.subheader("Acesso ao sistema")
+    col_l, col_c, col_r = st.columns([1, 2, 1])
+    with col_c:
+        st.image("logo.jpg", use_container_width=True)
+        st.markdown("<h2 style='text-align:center'>Assinatura Médica Digital</h2>",
+                    unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center; color:gray'>Acesso ao sistema</p>",
+                    unsafe_allow_html=True)
+        st.write("")
 
-    with st.form("login"):
-        usuario = st.text_input("Usuário")
-        senha   = st.text_input("Senha", type="password")
-        entrar  = st.form_submit_button("Entrar", type="primary", use_container_width=True)
+        with st.form("login"):
+            usuario = st.text_input("Usuário")
+            senha   = st.text_input("Senha", type="password")
+            entrar  = st.form_submit_button("Entrar", type="primary", use_container_width=True)
 
-    if entrar:
-        from auth import autenticar
-        dados = autenticar(usuario, senha)
-        if dados:
-            st.session_state.usuario      = dados["usuario"]
-            st.session_state.nome_usuario = dados["nome"]
-            st.rerun()
-        else:
-            st.error("Usuário ou senha inválidos.")
+        if entrar:
+            from auth import autenticar
+            dados = autenticar(usuario, senha)
+            if dados:
+                st.session_state.usuario      = dados["usuario"]
+                st.session_state.nome_usuario = dados["nome"]
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
 
 
 if not st.session_state.usuario:
@@ -49,6 +55,8 @@ if not st.session_state.usuario:
 # Sidebar — usuário logado + logout
 # ---------------------------------------------------------------------------
 with st.sidebar:
+    st.image("logo.jpg", use_container_width=True)
+    st.divider()
     st.markdown(f"**{st.session_state.nome_usuario}**")
     st.caption(f"@{st.session_state.usuario}")
     if st.button("Sair", use_container_width=True):
