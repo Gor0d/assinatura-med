@@ -23,9 +23,9 @@ TARGET_HEIGHT = 472
 TARGET_DPI = 300
 
 # Proporções em relação à altura da assinatura normalizada
-FONT_NOME_RATIO   = 0.12   # tamanho da fonte do nome
-FONT_INFO_RATIO   = 0.10   # tamanho da fonte dos demais campos
-SPACING_RATIO     = 0.03   # espaço entre linhas
+FONT_NOME_RATIO   = 0.18   # tamanho da fonte do nome
+FONT_INFO_RATIO   = 0.15   # tamanho da fonte dos demais campos
+SPACING_RATIO     = 0.04   # espaço entre linhas
 PADDING_RATIO     = 0.18   # padding externo
 GAP_RATIO         = 0.18   # espaço entre assinatura e texto
 
