@@ -16,7 +16,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 # Altura padrão (px) para normalizar todas as assinaturas
-TARGET_HEIGHT = 260
+# 300 DPI × 4 cm ≈ 472 px — tamanho adequado para documentos médicos
+TARGET_HEIGHT = 472
+
+# DPI para salvar o PNG (300 = qualidade para impressão/documentos)
+TARGET_DPI = 300
 
 # Proporções em relação à altura da assinatura normalizada
 FONT_NOME_RATIO   = 0.12   # tamanho da fonte do nome
@@ -204,7 +208,7 @@ def gerar(img_assinatura: str, nome: str, especialidade: str,
     """Gera o PNG a partir de um arquivo em disco."""
     assinatura = preparar_assinatura_de_arquivo(img_assinatura)
     canvas = _compor_canvas(assinatura, nome, especialidade, crm_estado, crm_numero, rqe)
-    canvas.save(saida, "PNG")
+    canvas.save(saida, "PNG", dpi=(TARGET_DPI, TARGET_DPI))
     print(f"Assinatura gerada: {saida}")
 
 
@@ -214,7 +218,7 @@ def gerar_em_memoria(img_upload, nome: str, especialidade: str,
     assinatura = preparar_assinatura_de_upload(img_upload)
     canvas = _compor_canvas(assinatura, nome, especialidade, crm_estado, crm_numero, rqe)
     buf = io.BytesIO()
-    canvas.save(buf, "PNG")
+    canvas.save(buf, "PNG", dpi=(TARGET_DPI, TARGET_DPI))
     return buf.getvalue()
 
 
