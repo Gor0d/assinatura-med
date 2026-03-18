@@ -87,12 +87,11 @@ def buscar_assinatura_atual(cd_prestador: int) -> bytes | None:
 
 def salvar_assinatura(cd_prestador: int, img_bytes: bytes) -> str:
     """
-    Insere ou atualiza a assinatura usando dbaadv.base64_to_blob().
-    O base64 é passado como CLOB para superar o limite de 4000 bytes.
+    Insere ou atualiza a assinatura gravando binário diretamente:
+      - ASSINATURA      (Long Raw) → bytes via DB_TYPE_LONG_RAW
+      - ASSINATURA_TISS (BLOB)     → bytes via DB_TYPE_BLOB
     Retorna 'INSERT' ou 'UPDATE'.
     """
-    b64_str = base64.b64encode(img_bytes).decode("utf-8")
-
     with conectar() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -102,29 +101,37 @@ def salvar_assinatura(cd_prestador: int, img_bytes: bytes) -> str:
             existe = cur.fetchone()[0] > 0
 
             if existe:
-                cur.setinputsizes(b64=oracledb.DB_TYPE_CLOB)
+                cur.setinputsizes(
+                    assinatura=oracledb.DB_TYPE_LONG_RAW,
+                    assinatura_tiss=oracledb.DB_TYPE_BLOB,
+                )
                 cur.execute(
                     """
                     UPDATE PRESTADOR_ASSINATURA
-                    SET ASSINATURA      = dbaadv.base64_to_blob(:b64),
-                        ASSINATURA_TISS = dbaadv.base64_to_blob(:b64)
+                    SET ASSINATURA      = :assinatura,
+                        ASSINATURA_TISS = :assinatura_tiss
                     WHERE CD_PRESTADOR  = :cd
                     """,
-                    b64=b64_str,
+                    assinatura=img_bytes,
+                    assinatura_tiss=img_bytes,
                     cd=cd_prestador,
                 )
                 operacao = "UPDATE"
             else:
-                cur.setinputsizes(b64=oracledb.DB_TYPE_CLOB)
+                cur.setinputsizes(
+                    assinatura=oracledb.DB_TYPE_LONG_RAW,
+                    assinatura_tiss=oracledb.DB_TYPE_BLOB,
+                )
                 cur.execute(
                     """
                     INSERT INTO PRESTADOR_ASSINATURA
                         (CD_PRESTADOR, ASSINATURA, ASSINATURA_TISS)
                     VALUES
-                        (:cd, dbaadv.base64_to_blob(:b64), dbaadv.base64_to_blob(:b64))
+                        (:cd, :assinatura, :assinatura_tiss)
                     """,
                     cd=cd_prestador,
-                    b64=b64_str,
+                    assinatura=img_bytes,
+                    assinatura_tiss=img_bytes,
                 )
                 operacao = "INSERT"
 
