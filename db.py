@@ -87,11 +87,11 @@ def buscar_assinatura_atual(cd_prestador: int) -> bytes | None:
 
 def salvar_assinatura(cd_prestador: int, img_bytes: bytes) -> str:
     """
-    Insere ou atualiza a assinatura nas colunas ASSINATURA (Long Raw)
-    e ASSINATURA_TISS (BLOB) em base64.
+    Insere ou atualiza a assinatura usando dbaadv.base64_to_blob().
+    O base64 é passado como CLOB para superar o limite de 4000 bytes.
     Retorna 'INSERT' ou 'UPDATE'.
     """
-    b64 = base64.b64encode(img_bytes)  # bytes base64
+    b64_str = base64.b64encode(img_bytes).decode("utf-8")
 
     with conectar() as conn:
         with conn.cursor() as cur:
@@ -102,29 +102,29 @@ def salvar_assinatura(cd_prestador: int, img_bytes: bytes) -> str:
             existe = cur.fetchone()[0] > 0
 
             if existe:
+                cur.setinputsizes(b64=oracledb.DB_TYPE_CLOB)
                 cur.execute(
                     """
                     UPDATE PRESTADOR_ASSINATURA
-                    SET ASSINATURA      = :assinatura,
-                        ASSINATURA_TISS = :assinatura_tiss
+                    SET ASSINATURA      = dbaadv.base64_to_blob(:b64),
+                        ASSINATURA_TISS = dbaadv.base64_to_blob(:b64)
                     WHERE CD_PRESTADOR  = :cd
                     """,
-                    assinatura=b64,
-                    assinatura_tiss=b64,
+                    b64=b64_str,
                     cd=cd_prestador,
                 )
                 operacao = "UPDATE"
             else:
+                cur.setinputsizes(b64=oracledb.DB_TYPE_CLOB)
                 cur.execute(
                     """
                     INSERT INTO PRESTADOR_ASSINATURA
                         (CD_PRESTADOR, ASSINATURA, ASSINATURA_TISS)
                     VALUES
-                        (:cd, :assinatura, :assinatura_tiss)
+                        (:cd, dbaadv.base64_to_blob(:b64), dbaadv.base64_to_blob(:b64))
                     """,
                     cd=cd_prestador,
-                    assinatura=b64,
-                    assinatura_tiss=b64,
+                    b64=b64_str,
                 )
                 operacao = "INSERT"
 
