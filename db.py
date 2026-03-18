@@ -34,6 +34,44 @@ def conectar() -> oracledb.Connection:
 # Consultas
 # ---------------------------------------------------------------------------
 
+def listar_assinaturas(filtro: str = "") -> list[dict]:
+    """Retorna todos os prestadores com assinatura cadastrada."""
+    sql = """
+        SELECT pa.CD_PRESTADOR,
+               p.NM_PRESTADOR,
+               p.DS_CODIGO_CONSELHO
+        FROM PRESTADOR_ASSINATURA pa
+        JOIN PRESTADOR p ON p.CD_PRESTADOR = pa.CD_PRESTADOR
+        WHERE pa.ASSINATURA_TISS IS NOT NULL
+    """
+    params = {}
+    if filtro:
+        sql += " AND (UPPER(p.NM_PRESTADOR) LIKE :f OR CAST(pa.CD_PRESTADOR AS VARCHAR2(20)) LIKE :f)"
+        params["f"] = f"%{filtro.upper()}%"
+    sql += " ORDER BY p.NM_PRESTADOR"
+
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, **params)
+            rows = cur.fetchall()
+
+    return [
+        {"cd_prestador": r[0], "nm_prestador": r[1], "crm": r[2]}
+        for r in rows
+    ]
+
+
+def excluir_assinatura(cd_prestador: int) -> None:
+    """Remove o registro de assinatura do prestador."""
+    with conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM PRESTADOR_ASSINATURA WHERE CD_PRESTADOR = :cd",
+                cd=cd_prestador,
+            )
+        conn.commit()
+
+
 def buscar_prestador(cd_prestador: int) -> dict | None:
     """Retorna NM_PRESTADOR e DS_CODIGO_CONSELHO ou None se não encontrado."""
     with conectar() as conn:

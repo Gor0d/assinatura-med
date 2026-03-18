@@ -74,14 +74,15 @@ for key in ("img_bytes", "prestador", "cd_prestador", "assinatura_atual"):
 # ---------------------------------------------------------------------------
 # Abas: Cadastro | Auditoria | Usuários
 # ---------------------------------------------------------------------------
-abas = ["Cadastro de Assinatura", "Log de Auditoria"]
+abas = ["Cadastro de Assinatura", "Assinaturas Cadastradas", "Log de Auditoria"]
 if st.session_state.usuario == "admin":
     abas.append("Gerenciar Usuários")
 
 tabs = st.tabs(abas)
-aba_cadastro  = tabs[0]
-aba_auditoria = tabs[1]
-aba_usuarios  = tabs[2] if len(tabs) > 2 else None
+aba_cadastro   = tabs[0]
+aba_lista      = tabs[1]
+aba_auditoria  = tabs[2]
+aba_usuarios   = tabs[3] if len(tabs) > 3 else None
 
 # ===========================================================================
 # ABA CADASTRO
@@ -213,6 +214,100 @@ with aba_cadastro:
                 for key in ("prestador", "cd_prestador", "assinatura_atual"):
                     st.session_state[key] = None
                 st.rerun()
+
+# ===========================================================================
+# ABA LISTA DE ASSINATURAS
+# ===========================================================================
+with aba_lista:
+    st.title("Assinaturas Cadastradas")
+
+    from db import listar_assinaturas, excluir_assinatura
+
+    # Inicializa estados da aba
+    for key in ("ver_cd", "del_cd", "del_nome", "edit_cd"):
+        if key not in st.session_state:
+            st.session_state[key] = None
+
+    filtro = st.text_input("Buscar por nome ou código", placeholder="Ex: Juliana ou 574")
+
+    try:
+        registros = listar_assinaturas(filtro.strip())
+    except Exception as e:
+        st.error(f"Erro ao carregar lista: {e}")
+        registros = []
+
+    if not registros:
+        st.info("Nenhuma assinatura encontrada.")
+    else:
+        st.caption(f"{len(registros)} prestador(es) encontrado(s)")
+
+        # Cabeçalho
+        h = st.columns([1, 3, 2, 1, 1, 1])
+        for col, titulo in zip(h, ["Código", "Nome", "CRM", "Ver", "Editar", "Excluir"]):
+            col.markdown(f"**{titulo}**")
+        st.divider()
+
+        for r in registros:
+            cd   = r["cd_prestador"]
+            nome = r["nm_prestador"]
+            crm  = r["crm"] or "—"
+
+            c1, c2, c3, c4, c5, c6 = st.columns([1, 3, 2, 1, 1, 1])
+            c1.write(cd)
+            c2.write(nome)
+            c3.write(crm)
+
+            if c4.button("👁", key=f"ver_{cd}", help="Visualizar assinatura"):
+                st.session_state.ver_cd = cd if st.session_state.ver_cd != cd else None
+                st.session_state.del_cd = None
+
+            if c5.button("✏️", key=f"edit_{cd}", help="Alterar assinatura"):
+                st.session_state.edit_cd = cd
+                st.toast(f"Vá para a aba **Cadastro** e pesquise o código **{cd}** para substituir a assinatura.")
+
+            if c6.button("🗑️", key=f"del_{cd}", help="Excluir assinatura"):
+                st.session_state.del_cd   = cd
+                st.session_state.del_nome = nome
+                st.session_state.ver_cd   = None
+
+            # Painel de visualização inline
+            if st.session_state.ver_cd == cd:
+                with st.container(border=True):
+                    try:
+                        from db import buscar_assinatura_atual
+                        ass = buscar_assinatura_atual(cd)
+                        if ass.get("imagem"):
+                            st.image(ass["imagem"], caption=nome, width="content")
+                        else:
+                            st.caption("Assinatura cadastrada, mas o formato não pode ser pré-visualizado.")
+                    except Exception as e:
+                        st.error(f"Erro ao carregar imagem: {e}")
+
+            # Confirmação de exclusão inline
+            if st.session_state.del_cd == cd:
+                with st.container(border=True):
+                    st.warning(f"Confirma a exclusão da assinatura de **{st.session_state.del_nome}**?")
+                    ca, cb = st.columns(2)
+                    if ca.button("✅ Sim, excluir", key=f"conf_del_{cd}", type="primary"):
+                        try:
+                            from audit import registrar
+                            excluir_assinatura(cd)
+                            registrar(
+                                operador=st.session_state.nome_usuario,
+                                cd_prestador=cd,
+                                nm_prestador=nome,
+                                operacao="DELETE",
+                            )
+                            st.success(f"Assinatura de **{nome}** excluída.")
+                            st.session_state.del_cd   = None
+                            st.session_state.del_nome = None
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao excluir: {e}")
+                    if cb.button("❌ Cancelar", key=f"canc_del_{cd}"):
+                        st.session_state.del_cd   = None
+                        st.session_state.del_nome = None
+                        st.rerun()
 
 # ===========================================================================
 # ABA AUDITORIA
