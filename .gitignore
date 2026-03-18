@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+assinatura_teste.png
+resultado_*.png
+*.jpg
+*.jpeg
