@@ -5,6 +5,16 @@ Operações de banco de dados Oracle para assinaturas médicas.
 import base64
 import os
 import oracledb
+from dotenv import load_dotenv
+
+load_dotenv()  # carrega .env se existir (local); em produção usa variáveis do ambiente
+
+# Thick mode — necessário para bancos Oracle com autenticação 10g (DES)
+_instant_client = os.environ.get("ORACLE_CLIENT_DIR", r"C:\instantclient_12_2")
+try:
+    oracledb.init_oracle_client(lib_dir=_instant_client)
+except Exception:
+    pass  # já inicializado ou caminho não encontrado (thin mode como fallback)
 
 # ---------------------------------------------------------------------------
 # Conexão
@@ -14,11 +24,7 @@ def conectar() -> oracledb.Connection:
     return oracledb.connect(
         user=os.environ["DB_USER"],
         password=os.environ["DB_PASSWORD"],
-        dsn=oracledb.makedsn(
-            os.environ["DB_HOST"],
-            int(os.environ.get("DB_PORT", 1521)),
-            sid=os.environ["DB_SID"],
-        ),
+        dsn=f"{os.environ['DB_HOST']}:{os.environ.get('DB_PORT', '1521')}/{os.environ['DB_SERVICE']}",
     )
 
 
