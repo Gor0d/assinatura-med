@@ -115,7 +115,7 @@ with aba_cadastro:
                     else:
                         st.session_state.cd_prestador     = cd
                         st.session_state.prestador        = prestador
-                        st.session_state.assinatura_atual = buscar_assinatura_atual(cd)
+                        st.session_state.assinatura_atual = buscar_assinatura_atual(cd)  # dict
 
                 except ValueError:
                     st.error("CD_PRESTADOR deve ser numérico.")
@@ -123,13 +123,16 @@ with aba_cadastro:
                     st.error(f"Erro ao conectar ao banco: {e}")
 
             if st.session_state.prestador:
-                p = st.session_state.prestador
+                p   = st.session_state.prestador
+                ass = st.session_state.assinatura_atual or {}
                 st.success(f"**{p['nm_prestador']}** — CRM: {p['ds_codigo_conselho']}")
 
-                if st.session_state.assinatura_atual:
-                    st.warning("Este prestador já possui assinatura cadastrada:")
-                    st.image(st.session_state.assinatura_atual,
-                             caption="Assinatura atual", width="content")
+                if ass.get("existe"):
+                    st.warning("Este prestador já possui assinatura cadastrada.")
+                    if ass.get("imagem"):
+                        st.image(ass["imagem"], caption="Assinatura atual", width="content")
+                    else:
+                        st.caption("(formato atual não pode ser pré-visualizado)")
                     acao   = "Atualizar"
                     alerta = "⚠ Confirma a **substituição** da assinatura existente?"
                 else:

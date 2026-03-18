@@ -52,11 +52,16 @@ def buscar_prestador(cd_prestador: int) -> dict | None:
     return {"nm_prestador": row[0], "ds_codigo_conselho": row[1]}
 
 
-def buscar_assinatura_atual(cd_prestador: int) -> bytes | None:
+def buscar_assinatura_atual(cd_prestador: int) -> dict:
     """
-    Retorna os bytes da assinatura atual (coluna ASSINATURA_TISS / BLOB)
-    ou None se não houver registro.
+    Verifica se existe assinatura e tenta retornar os bytes para exibição.
+    Retorna dict com:
+      - existe (bool)
+      - imagem (bytes | None) — None se existir mas não conseguir exibir
     """
+    from PIL import Image
+    import io as _io
+
     with conectar() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -69,17 +74,27 @@ def buscar_assinatura_atual(cd_prestador: int) -> bytes | None:
             )
             row = cur.fetchone()
             if row is None or row[0] is None:
-                return None
+                return {"existe": False, "imagem": None}
 
             # LOB deve ser lido DENTRO do bloco com conexão ativa
             valor = row[0]
             if hasattr(valor, "read"):
                 valor = valor.read()
 
-    try:
-        return base64.b64decode(valor)
-    except Exception:
-        return bytes(valor)
+    # Tenta decodificar base64 primeiro, depois usa raw
+    for candidato in [_tentar_base64(valor), bytes(valor)]:
+        try:
+            Image.open(_io.BytesIO(candidato)).verify()
+            return {"existe": True, "imagem": candidato}
+        except Exception:
+            continue
+
+    # Tem registro mas não consegue exibir (formato proprietário do MV)
+    return {"existe": True, "imagem": None}
+
+
+def _tentar_base64(dados: bytes) -> bytes:
+    return base64.b64decode(dados)
 
 
 # ---------------------------------------------------------------------------
