@@ -29,16 +29,21 @@ GAP_RATIO         = 0.20   # espaço entre assinatura e texto
 BG_COLOR   = (255, 255, 255)
 TEXT_COLOR = (0, 0, 0)
 
-# Fontes do sistema
+# Fontes — prioriza a pasta local (funciona em qualquer SO)
+_BASE = Path(__file__).parent / "fonts"
 FONT_PATHS_REGULAR = [
+    str(_BASE / "DejaVuSans.ttf"),
     "C:/Windows/Fonts/calibri.ttf",
     "C:/Windows/Fonts/arial.ttf",
     "C:/Windows/Fonts/segoeui.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 ]
 FONT_PATHS_BOLD = [
+    str(_BASE / "DejaVuSans-Bold.ttf"),
     "C:/Windows/Fonts/calibrib.ttf",
     "C:/Windows/Fonts/arialbd.ttf",
     "C:/Windows/Fonts/segoeuib.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 ]
 
 
