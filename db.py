@@ -13,8 +13,10 @@ load_dotenv()  # carrega .env se existir (local); em produção usa variáveis d
 _instant_client = os.environ.get("ORACLE_CLIENT_DIR", r"C:\instantclient_12_2")
 try:
     oracledb.init_oracle_client(lib_dir=_instant_client)
-except Exception:
-    pass  # já inicializado ou caminho não encontrado (thin mode como fallback)
+except oracledb.ProgrammingError:
+    pass  # já inicializado anteriormente — seguro ignorar
+except Exception as e:
+    raise RuntimeError(f"Falha ao inicializar Oracle Client em '{_instant_client}': {e}") from e
 
 # ---------------------------------------------------------------------------
 # Conexão
@@ -66,15 +68,14 @@ def buscar_assinatura_atual(cd_prestador: int) -> bytes | None:
                 cd=cd_prestador,
             )
             row = cur.fetchone()
-    if row is None or row[0] is None:
-        return None
+            if row is None or row[0] is None:
+                return None
 
-    valor = row[0]
-    # BLOB vem como LOB object no oracledb
-    if hasattr(valor, "read"):
-        valor = valor.read()
+            # LOB deve ser lido DENTRO do bloco com conexão ativa
+            valor = row[0]
+            if hasattr(valor, "read"):
+                valor = valor.read()
 
-    # Se estiver em base64, decodifica para exibir
     try:
         return base64.b64decode(valor)
     except Exception:
