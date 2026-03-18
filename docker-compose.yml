@@ -7,9 +7,12 @@ services:
       - .env
     environment:
       - LOG_DIR=/app/logs
+      - USERS_FILE=/app/data/users.json
     volumes:
       - logs_data:/app/logs
+      - users_data:/app/data
     restart: unless-stopped
 
 volumes:
   logs_data:
+  users_data:

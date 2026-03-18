@@ -13,6 +13,50 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
+# Autenticação
+# ---------------------------------------------------------------------------
+if "usuario" not in st.session_state:
+    st.session_state.usuario = None
+if "nome_usuario" not in st.session_state:
+    st.session_state.nome_usuario = None
+
+
+def tela_login():
+    st.title("Assinatura Médica Digital")
+    st.subheader("Acesso ao sistema")
+
+    with st.form("login"):
+        usuario = st.text_input("Usuário")
+        senha   = st.text_input("Senha", type="password")
+        entrar  = st.form_submit_button("Entrar", type="primary", use_container_width=True)
+
+    if entrar:
+        from auth import autenticar
+        dados = autenticar(usuario, senha)
+        if dados:
+            st.session_state.usuario      = dados["usuario"]
+            st.session_state.nome_usuario = dados["nome"]
+            st.rerun()
+        else:
+            st.error("Usuário ou senha inválidos.")
+
+
+if not st.session_state.usuario:
+    tela_login()
+    st.stop()
+
+# ---------------------------------------------------------------------------
+# Sidebar — usuário logado + logout
+# ---------------------------------------------------------------------------
+with st.sidebar:
+    st.markdown(f"**{st.session_state.nome_usuario}**")
+    st.caption(f"@{st.session_state.usuario}")
+    if st.button("Sair", use_container_width=True):
+        st.session_state.usuario      = None
+        st.session_state.nome_usuario = None
+        st.rerun()
+
+# ---------------------------------------------------------------------------
 # Inicializa estado da sessão
 # ---------------------------------------------------------------------------
 for key in ("img_bytes", "prestador", "cd_prestador", "assinatura_atual"):
@@ -20,23 +64,22 @@ for key in ("img_bytes", "prestador", "cd_prestador", "assinatura_atual"):
         st.session_state[key] = None
 
 # ---------------------------------------------------------------------------
-# Abas: Cadastro | Auditoria
+# Abas: Cadastro | Auditoria | Usuários
 # ---------------------------------------------------------------------------
-aba_cadastro, aba_auditoria = st.tabs(["Cadastro de Assinatura", "Log de Auditoria"])
+abas = ["Cadastro de Assinatura", "Log de Auditoria"]
+if st.session_state.usuario == "admin":
+    abas.append("Gerenciar Usuários")
+
+tabs = st.tabs(abas)
+aba_cadastro  = tabs[0]
+aba_auditoria = tabs[1]
+aba_usuarios  = tabs[2] if len(tabs) > 2 else None
 
 # ===========================================================================
 # ABA CADASTRO
 # ===========================================================================
 with aba_cadastro:
     st.title("Assinatura Médica Digital")
-
-    # -----------------------------------------------------------------------
-    # ETAPA 0 — Identificação do operador
-    # -----------------------------------------------------------------------
-    operador = st.text_input("Seu nome (operador)", placeholder="Ex: Emerson Guimarães",
-                             help="Será registrado no log de auditoria")
-
-    st.divider()
 
     # -----------------------------------------------------------------------
     # ETAPA 1 — Upload da assinatura
@@ -98,73 +141,70 @@ with aba_cadastro:
         st.divider()
         st.subheader("4. Salvar no banco Oracle (MV)")
 
-        if not operador.strip():
-            st.warning("Preencha seu nome no campo **Operador** antes de salvar.")
-        else:
-            cd_input = st.text_input("Código do prestador (CD_PRESTADOR)", placeholder="574")
+        cd_input = st.text_input("Código do prestador (CD_PRESTADOR)", placeholder="574")
 
-            if st.button("Pesquisar prestador", disabled=not cd_input.strip()):
-                try:
-                    from db import buscar_prestador, buscar_assinatura_atual
-                    cd = int(cd_input.strip())
-                    with st.spinner("Consultando..."):
-                        prestador = buscar_prestador(cd)
+        if st.button("Pesquisar prestador", disabled=not cd_input.strip()):
+            try:
+                from db import buscar_prestador, buscar_assinatura_atual
+                cd = int(cd_input.strip())
+                with st.spinner("Consultando..."):
+                    prestador = buscar_prestador(cd)
 
-                    if prestador is None:
-                        st.error(f"Prestador {cd} não encontrado.")
-                    else:
-                        st.session_state.cd_prestador     = cd
-                        st.session_state.prestador        = prestador
-                        st.session_state.assinatura_atual = buscar_assinatura_atual(cd)  # dict
-
-                except ValueError:
-                    st.error("CD_PRESTADOR deve ser numérico.")
-                except Exception as e:
-                    st.error(f"Erro ao conectar ao banco: {e}")
-
-            if st.session_state.prestador:
-                p   = st.session_state.prestador
-                ass = st.session_state.assinatura_atual or {}
-                st.success(f"**{p['nm_prestador']}** — CRM: {p['ds_codigo_conselho']}")
-
-                if ass.get("existe"):
-                    st.warning("Este prestador já possui assinatura cadastrada.")
-                    if ass.get("imagem"):
-                        st.image(ass["imagem"], caption="Assinatura atual", width="content")
-                    else:
-                        st.caption("(formato atual não pode ser pré-visualizado)")
-                    acao   = "Atualizar"
-                    alerta = "⚠ Confirma a **substituição** da assinatura existente?"
+                if prestador is None:
+                    st.error(f"Prestador {cd} não encontrado.")
                 else:
-                    acao   = "Inserir"
-                    alerta = f"Confirma o cadastro da assinatura para **{p['nm_prestador']}**?"
+                    st.session_state.cd_prestador     = cd
+                    st.session_state.prestador        = prestador
+                    st.session_state.assinatura_atual = buscar_assinatura_atual(cd)
 
-                st.info(alerta)
-                col_sim, col_nao = st.columns(2)
+            except ValueError:
+                st.error("CD_PRESTADOR deve ser numérico.")
+            except Exception as e:
+                st.error(f"Erro ao conectar ao banco: {e}")
 
-                if col_sim.button(f"✅ Sim, {acao}", type="primary"):
-                    try:
-                        from db import salvar_assinatura
-                        from audit import registrar
-                        with st.spinner("Salvando..."):
-                            op = salvar_assinatura(st.session_state.cd_prestador,
-                                                   st.session_state.img_bytes)
-                        registrar(
-                            operador=operador.strip(),
-                            cd_prestador=st.session_state.cd_prestador,
-                            nm_prestador=p["nm_prestador"],
-                            operacao=op,
-                        )
-                        st.success(f"{op} realizado com sucesso para **{p['nm_prestador']}**!")
-                        for key in ("prestador", "cd_prestador", "assinatura_atual"):
-                            st.session_state[key] = None
-                    except Exception as e:
-                        st.error(f"Erro ao salvar: {e}")
+        if st.session_state.prestador:
+            p   = st.session_state.prestador
+            ass = st.session_state.assinatura_atual or {}
+            st.success(f"**{p['nm_prestador']}** — CRM: {p['ds_codigo_conselho']}")
 
-                if col_nao.button("❌ Cancelar"):
+            if ass.get("existe"):
+                st.warning("Este prestador já possui assinatura cadastrada.")
+                if ass.get("imagem"):
+                    st.image(ass["imagem"], caption="Assinatura atual", width="content")
+                else:
+                    st.caption("(formato atual não pode ser pré-visualizado)")
+                acao   = "Atualizar"
+                alerta = "⚠ Confirma a **substituição** da assinatura existente?"
+            else:
+                acao   = "Inserir"
+                alerta = f"Confirma o cadastro da assinatura para **{p['nm_prestador']}**?"
+
+            st.info(alerta)
+            col_sim, col_nao = st.columns(2)
+
+            if col_sim.button(f"✅ Sim, {acao}", type="primary"):
+                try:
+                    from db import salvar_assinatura
+                    from audit import registrar
+                    with st.spinner("Salvando..."):
+                        op = salvar_assinatura(st.session_state.cd_prestador,
+                                               st.session_state.img_bytes)
+                    registrar(
+                        operador=st.session_state.nome_usuario,
+                        cd_prestador=st.session_state.cd_prestador,
+                        nm_prestador=p["nm_prestador"],
+                        operacao=op,
+                    )
+                    st.success(f"{op} realizado com sucesso para **{p['nm_prestador']}**!")
                     for key in ("prestador", "cd_prestador", "assinatura_atual"):
                         st.session_state[key] = None
-                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar: {e}")
+
+            if col_nao.button("❌ Cancelar"):
+                for key in ("prestador", "cd_prestador", "assinatura_atual"):
+                    st.session_state[key] = None
+                st.rerun()
 
 # ===========================================================================
 # ABA AUDITORIA
@@ -182,10 +222,8 @@ with aba_auditoria:
     else:
         df = pd.DataFrame(logs, columns=["dt_operacao", "operador", "cd_prestador",
                                          "nm_prestador", "operacao", "obs"])
-        df.columns = ["Data/Hora", "Operador", "Cód. Prestador",
-                      "Prestador", "Operação", "Obs"]
+        df.columns = ["Data/Hora", "Operador", "Cód. Prestador", "Prestador", "Operação", "Obs"]
 
-        # Filtros
         col_f1, col_f2 = st.columns(2)
         filtro_op  = col_f1.text_input("Filtrar por operador")
         filtro_pre = col_f2.text_input("Filtrar por prestador")
@@ -200,3 +238,59 @@ with aba_auditoria:
 
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("⬇ Exportar CSV", csv, "auditoria.csv", "text/csv")
+
+# ===========================================================================
+# ABA USUÁRIOS (somente admin)
+# ===========================================================================
+if aba_usuarios:
+    with aba_usuarios:
+        st.title("Gerenciar Usuários")
+        from auth import listar_usuarios, adicionar_usuario, remover_usuario, alterar_senha
+
+        # Lista atual
+        usuarios = listar_usuarios()
+        st.dataframe(
+            {"Usuário": [u["usuario"] for u in usuarios],
+             "Nome":    [u["nome"]    for u in usuarios]},
+            use_container_width=True, hide_index=True,
+        )
+
+        st.divider()
+
+        col_a, col_b = st.columns(2)
+
+        # Adicionar usuário
+        with col_a:
+            st.subheader("Adicionar usuário")
+            with st.form("add_user"):
+                nu = st.text_input("Usuário (login)")
+                nn = st.text_input("Nome completo")
+                ns = st.text_input("Senha", type="password")
+                if st.form_submit_button("Adicionar", use_container_width=True):
+                    if nu and nn and ns:
+                        adicionar_usuario(nu, ns, nn)
+                        st.success(f"Usuário **{nu}** criado.")
+                        st.rerun()
+                    else:
+                        st.warning("Preencha todos os campos.")
+
+        # Remover / alterar senha
+        with col_b:
+            st.subheader("Remover usuário")
+            logins = [u["usuario"] for u in usuarios if u["usuario"] != "admin"]
+            with st.form("rem_user"):
+                ru = st.selectbox("Usuário", logins if logins else ["—"])
+                if st.form_submit_button("Remover", use_container_width=True):
+                    if ru and ru != "—":
+                        remover_usuario(ru)
+                        st.success(f"Usuário **{ru}** removido.")
+                        st.rerun()
+
+            st.subheader("Alterar senha")
+            with st.form("alt_senha"):
+                au = st.selectbox("Usuário ", [u["usuario"] for u in usuarios])
+                ns2 = st.text_input("Nova senha", type="password")
+                if st.form_submit_button("Alterar", use_container_width=True):
+                    if au and ns2:
+                        alterar_senha(au, ns2)
+                        st.success("Senha alterada.")
