@@ -135,16 +135,118 @@ def _tamanhos(sig_h: int) -> tuple[int, int, int, int, int]:
     )
 
 
-def _montar_linhas(nome: str, especialidade: str, crm_estado: str,
-                   crm_numero: str, rqe: str | None,
-                   font_nome: int, font_info: int) -> list[tuple[str, int, bool]]:
-    linhas = [
-        (nome, font_nome, True),
-        (especialidade, font_info, False),
-        (f"CRM/{crm_estado} {crm_numero}", font_info, False),
-    ]
-    if rqe:
-        linhas.append((f"RQE {rqe}", font_info, False))
+def _linha_opcional(tipo: str | None, numero: str | None) -> str | None:
+    if not tipo or tipo == "Nenhum" or not numero:
+        return None
+    return f"{tipo} {numero}"
+
+
+def _formatar_conselho(conselho_sigla: str, crm_estado: str, crm_numero: str) -> str:
+    if conselho_sigla.upper() == "CRFA" and crm_estado.isdigit():
+        return f"{conselho_sigla}-{crm_estado} {crm_numero}"
+    return f"{conselho_sigla}/{crm_estado} {crm_numero}"
+
+
+def _medir_texto(texto: str, tamanho: int, negrito: bool = False) -> tuple[int, int]:
+    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    fonte = carregar_fonte(tamanho, negrito=negrito)
+    bbox = draw.textbbox((0, 0), texto, font=fonte)
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+
+def _tokenizar_texto(texto: str) -> list[str]:
+    tokens: list[str] = []
+    atual = []
+    for char in texto:
+        if char in "/&":
+            if atual:
+                tokens.append("".join(atual).strip())
+                atual = []
+            tokens.append(char)
+        elif char.isspace():
+            if atual:
+                tokens.append("".join(atual).strip())
+                atual = []
+        else:
+            atual.append(char)
+    if atual:
+        tokens.append("".join(atual).strip())
+    return [token for token in tokens if token]
+
+
+def _juntar_tokens(tokens: list[str]) -> str:
+    texto = ""
+    for token in tokens:
+        if token in "/&":
+            texto = f"{texto} {token}" if texto else token
+        else:
+            texto = f"{texto} {token}" if texto else token
+    return texto.strip()
+
+
+def _quebrar_texto_inteligente(texto: str, tamanho: int, largura_max: int) -> list[str]:
+    if not texto:
+        return []
+
+    largura_texto, _ = _medir_texto(texto, tamanho)
+    if largura_texto <= largura_max:
+        return [texto]
+
+    tokens = _tokenizar_texto(texto)
+    if len(tokens) <= 1:
+        return [texto]
+
+    linhas: list[str] = []
+    atual: list[str] = []
+
+    for token in tokens:
+        candidato = _juntar_tokens(atual + [token])
+        largura_candidata, _ = _medir_texto(candidato, tamanho)
+
+        if atual and largura_candidata > largura_max:
+            if atual[-1] in "/&" and len(atual) > 1:
+                ultimo_separador = atual.pop()
+                linhas.append(_juntar_tokens(atual))
+                atual = [ultimo_separador, token]
+            else:
+                linhas.append(_juntar_tokens(atual))
+                atual = [token]
+        else:
+            atual.append(token)
+
+    if atual:
+        linhas.append(_juntar_tokens(atual))
+
+    return linhas
+
+
+def _linhas_especialidade(especialidade: str, tamanho: int, largura_max: int) -> list[str]:
+    blocos = [linha.strip() for linha in especialidade.splitlines() if linha.strip()]
+    if not blocos:
+        return []
+
+    linhas: list[str] = []
+    for bloco in blocos:
+        linhas.extend(_quebrar_texto_inteligente(bloco, tamanho, largura_max))
+    return linhas
+
+
+def _montar_linhas(nome: str, especialidade: str, conselho_sigla: str,
+                   crm_estado: str, crm_numero: str,
+                   registro_tipo: str | None, registro_numero: str | None,
+                   titulo_tipo: str | None, titulo_numero: str | None,
+                   font_nome: int, font_info: int,
+                   largura_max_especialidade: int) -> list[tuple[str, int, bool]]:
+    linhas = [(nome, font_nome, True)]
+    for linha_especialidade in _linhas_especialidade(especialidade, font_info, largura_max_especialidade):
+        linhas.append((linha_especialidade, font_info, False))
+    linhas.append((_formatar_conselho(conselho_sigla, crm_estado, crm_numero), font_info, False))
+    for linha in (
+        _linha_opcional(registro_tipo, registro_numero),
+        _linha_opcional(titulo_tipo, titulo_numero),
+    ):
+        if linha:
+            linhas.append((linha, font_info, False))
     return linhas
 
 
@@ -168,12 +270,27 @@ def _calcular_bloco(linhas: list[tuple[str, int, bool]],
 
 
 def _compor_canvas(assinatura: Image.Image, nome: str, especialidade: str,
-                   crm_estado: str, crm_numero: str, rqe: str | None) -> Image.Image:
+                   conselho_sigla: str, crm_estado: str, crm_numero: str,
+                   registro_tipo: str | None, registro_numero: str | None,
+                   titulo_tipo: str | None, titulo_numero: str | None) -> Image.Image:
     sig_w, sig_h = assinatura.size
     font_nome, font_info, spacing, padding, gap = _tamanhos(sig_h)
+    largura_max_especialidade = max(int(sig_w * 1.55), int(sig_h * 1.8))
 
-    linhas = _montar_linhas(nome, especialidade, crm_estado, crm_numero, rqe,
-                             font_nome, font_info)
+    linhas = _montar_linhas(
+        nome,
+        especialidade,
+        conselho_sigla,
+        crm_estado,
+        crm_numero,
+        registro_tipo,
+        registro_numero,
+        titulo_tipo,
+        titulo_numero,
+        font_nome,
+        font_info,
+        largura_max_especialidade,
+    )
     texto_w, texto_h, renderizadas = _calcular_bloco(linhas, spacing)
 
     altura  = max(sig_h, texto_h) + padding * 2
@@ -203,20 +320,46 @@ def _compor_canvas(assinatura: Image.Image, nome: str, especialidade: str,
 # ---------------------------------------------------------------------------
 
 def gerar(img_assinatura: str, nome: str, especialidade: str,
-          crm_estado: str, crm_numero: str, rqe: str | None,
+          conselho_sigla: str, crm_estado: str, crm_numero: str,
+          registro_tipo: str | None, registro_numero: str | None,
+          titulo_tipo: str | None, titulo_numero: str | None,
           saida: str) -> None:
     """Gera o PNG a partir de um arquivo em disco."""
     assinatura = preparar_assinatura_de_arquivo(img_assinatura)
-    canvas = _compor_canvas(assinatura, nome, especialidade, crm_estado, crm_numero, rqe)
+    canvas = _compor_canvas(
+        assinatura,
+        nome,
+        especialidade,
+        conselho_sigla,
+        crm_estado,
+        crm_numero,
+        registro_tipo,
+        registro_numero,
+        titulo_tipo,
+        titulo_numero,
+    )
     canvas.save(saida, "PNG", dpi=(TARGET_DPI, TARGET_DPI))
     print(f"Assinatura gerada: {saida}")
 
 
 def gerar_em_memoria(img_upload, nome: str, especialidade: str,
-                     crm_estado: str, crm_numero: str, rqe: str | None) -> bytes:
+                     conselho_sigla: str, crm_estado: str, crm_numero: str,
+                     registro_tipo: str | None, registro_numero: str | None,
+                     titulo_tipo: str | None, titulo_numero: str | None) -> bytes:
     """Gera o PNG a partir de um upload (file-like object) e retorna bytes."""
     assinatura = preparar_assinatura_de_upload(img_upload)
-    canvas = _compor_canvas(assinatura, nome, especialidade, crm_estado, crm_numero, rqe)
+    canvas = _compor_canvas(
+        assinatura,
+        nome,
+        especialidade,
+        conselho_sigla,
+        crm_estado,
+        crm_numero,
+        registro_tipo,
+        registro_numero,
+        titulo_tipo,
+        titulo_numero,
+    )
     buf = io.BytesIO()
     canvas.save(buf, "PNG", dpi=(TARGET_DPI, TARGET_DPI))
     return buf.getvalue()
@@ -233,9 +376,13 @@ def main() -> None:
     parser.add_argument("assinatura", help="Caminho da imagem da assinatura (PNG/JPG)")
     parser.add_argument("--nome",          required=True, help='Ex: "Dra. Juliana Santiago"')
     parser.add_argument("--especialidade", required=True, help='Ex: "Ginecologista e Obstetra"')
+    parser.add_argument("--conselho-sigla", default="CRM", help="Sigla do conselho. Ex: CRM, CRP, CRO")
     parser.add_argument("--crm-estado",    required=True, help='Estado do CRM. Ex: PA, SP, RJ')
     parser.add_argument("--crm-numero",    required=True, help='Número do CRM. Ex: 15696')
-    parser.add_argument("--rqe",           default=None,  help='RQE (opcional). Ex: 124150')
+    parser.add_argument("--registro-tipo",   default=None, help="Registro opcional. Ex: RQE, SBOT, SBOP")
+    parser.add_argument("--registro-numero", default=None, help="NÃºmero do registro opcional")
+    parser.add_argument("--titulo-tipo",     default=None, help="Titulo opcional. Ex: TEOT, TEOP")
+    parser.add_argument("--titulo-numero",   default=None, help="NÃºmero do titulo opcional")
     parser.add_argument("--saida",         default=None,  help="Arquivo de saída PNG")
     parser.add_argument("--altura",        type=int, default=TARGET_HEIGHT,
                         help=f"Altura alvo da assinatura em px (padrão: {TARGET_HEIGHT})")
@@ -258,9 +405,13 @@ def main() -> None:
         img_assinatura=args.assinatura,
         nome=args.nome,
         especialidade=args.especialidade,
+        conselho_sigla=args.conselho_sigla.upper(),
         crm_estado=args.crm_estado.upper(),
         crm_numero=args.crm_numero,
-        rqe=args.rqe,
+        registro_tipo=args.registro_tipo,
+        registro_numero=args.registro_numero,
+        titulo_tipo=args.titulo_tipo,
+        titulo_numero=args.titulo_numero,
         saida=saida,
     )
 

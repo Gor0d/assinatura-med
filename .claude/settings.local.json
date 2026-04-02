@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python teste.py)",
+      "Bash(start \"c:/Users/emerson.guimaraes/Projetos TI/Assinatura_MED/resultado_com_rqe.png\")",
+      "Bash(pip show:*)",
+      "Bash(python -c \"from gerar_assinatura import gerar_em_memoria; print\\(''OK''\\)\")",
+      "Bash(start cmd:*)",
+      "Bash(pip freeze:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo:*)",
+      "Bash(mkdir fonts:*)",
+      "Bash(curl -L \"https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.tar.bz2\" -o dejavu.tar.bz2)",
+      "Bash(tar -xjf dejavu.tar.bz2 \"dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf\" \"dejavu-fonts-ttf-2.37/ttf/DejaVuSans-Bold.ttf\" --strip-components=2 -C fonts/)",
+      "Bash(rm dejavu.tar.bz2)",
+      "Bash(tar -xjf dejavu.tar.bz2)",
+      "Bash(cp dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf fonts/)",
+      "Bash(cp dejavu-fonts-ttf-2.37/ttf/DejaVuSans-Bold.ttf fonts/)",
+      "Bash(rm -rf dejavu.tar.bz2 dejavu-fonts-ttf-2.37)",
+      "Bash(python -c \":*)",
+      "Bash(Test-NetConnection -ComputerName 10.224.190.224 -Port 1521)",
+      "Bash(curl -s --connect-timeout 5 telnet://10.224.190.224:1521)",
+      "Bash(powershell -Command \"\\(New-Object System.Net.Sockets.TcpClient\\).Connect\\(''10.224.190.224'', 1521\\); Write-Host ''Porta 1521 ABERTA''\")",
+      "Read(//c/orant/BIN/**)",
+      "Bash(powershell -Command \"[System.Reflection.AssemblyName]::GetAssemblyName\\(''C:\\\\orant\\\\BIN\\\\oci.dll''\\) 2>/dev/null\")",
+      "Bash(powershell -Command \"if \\(Test-Path ''C:\\\\orant\\\\BIN\\\\oci.dll''\\) { $f=[System.Reflection.PE.PEHeaders]::new\\([System.IO.File]::OpenRead\\(''C:\\\\orant\\\\BIN\\\\oci.dll''\\)\\); $f.PEHeader.Magic }\")",
+      "Bash(start \"\" \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
+      "Bash(docker exec assinatura_med-assinatura-med-1 python -c \":*)",
+      "Bash(powershell -Command \"New-NetFirewallRule -DisplayName ''Assinatura MED - Streamlit'' -Direction Inbound -Protocol TCP -LocalPort 5001 -Action Allow -Profile Any\")",
+      "Bash(docker exec:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker version:*)",
+      "Bash(docker info:*)"
+    ]
+  }
+}

@@ -22,11 +22,13 @@ except Exception as e:
 # Conexão
 # ---------------------------------------------------------------------------
 
-def conectar() -> oracledb.Connection:
+def conectar(ambiente: str = "HML") -> oracledb.Connection:
+    """Conecta ao banco conforme o ambiente: 'HML' ou 'PRD'."""
+    prefix = ambiente.upper()
     return oracledb.connect(
-        user=os.environ["DB_USER"],
-        password=os.environ["DB_PASSWORD"],
-        dsn=f"{os.environ['DB_HOST']}:{os.environ.get('DB_PORT', '1521')}/{os.environ['DB_SERVICE']}",
+        user=os.environ[f"{prefix}_USER"],
+        password=os.environ[f"{prefix}_PASSWORD"],
+        dsn=f"{os.environ[f'{prefix}_HOST']}:{os.environ.get(f'{prefix}_PORT', '1521')}/{os.environ[f'{prefix}_SERVICE']}",
     )
 
 
@@ -34,7 +36,7 @@ def conectar() -> oracledb.Connection:
 # Consultas
 # ---------------------------------------------------------------------------
 
-def listar_assinaturas(filtro: str = "") -> list[dict]:
+def listar_assinaturas(filtro: str = "", ambiente: str = "HML") -> list[dict]:
     """Retorna todos os prestadores com assinatura cadastrada."""
     sql = """
         SELECT pa.CD_PRESTADOR,
@@ -50,9 +52,9 @@ def listar_assinaturas(filtro: str = "") -> list[dict]:
         params["f"] = f"%{filtro.upper()}%"
     sql += " ORDER BY p.NM_PRESTADOR"
 
-    with conectar() as conn:
+    with conectar(ambiente) as conn:
         with conn.cursor() as cur:
-            cur.execute(sql, **params)
+            cur.execute(sql, params)
             rows = cur.fetchall()
 
     return [
@@ -61,9 +63,9 @@ def listar_assinaturas(filtro: str = "") -> list[dict]:
     ]
 
 
-def excluir_assinatura(cd_prestador: int) -> None:
+def excluir_assinatura(cd_prestador: int, ambiente: str = "HML") -> None:
     """Remove o registro de assinatura do prestador."""
-    with conectar() as conn:
+    with conectar(ambiente) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "DELETE FROM PRESTADOR_ASSINATURA WHERE CD_PRESTADOR = :cd",
@@ -72,9 +74,9 @@ def excluir_assinatura(cd_prestador: int) -> None:
         conn.commit()
 
 
-def buscar_prestador(cd_prestador: int) -> dict | None:
+def buscar_prestador(cd_prestador: int, ambiente: str = "HML") -> dict | None:
     """Retorna NM_PRESTADOR e DS_CODIGO_CONSELHO ou None se não encontrado."""
-    with conectar() as conn:
+    with conectar(ambiente) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -90,7 +92,7 @@ def buscar_prestador(cd_prestador: int) -> dict | None:
     return {"nm_prestador": row[0], "ds_codigo_conselho": row[1]}
 
 
-def buscar_assinatura_atual(cd_prestador: int) -> dict:
+def buscar_assinatura_atual(cd_prestador: int, ambiente: str = "HML") -> dict:
     """
     Verifica se existe assinatura e tenta retornar os bytes para exibição.
     Retorna dict com:
@@ -100,7 +102,7 @@ def buscar_assinatura_atual(cd_prestador: int) -> dict:
     from PIL import Image
     import io as _io
 
-    with conectar() as conn:
+    with conectar(ambiente) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -114,12 +116,10 @@ def buscar_assinatura_atual(cd_prestador: int) -> dict:
             if row is None or row[0] is None:
                 return {"existe": False, "imagem": None}
 
-            # LOB deve ser lido DENTRO do bloco com conexão ativa
             valor = row[0]
             if hasattr(valor, "read"):
                 valor = valor.read()
 
-    # Tenta decodificar base64 primeiro, depois usa raw
     for candidato in [_tentar_base64(valor), bytes(valor)]:
         try:
             Image.open(_io.BytesIO(candidato)).verify()
@@ -127,7 +127,6 @@ def buscar_assinatura_atual(cd_prestador: int) -> dict:
         except Exception:
             continue
 
-    # Tem registro mas não consegue exibir (formato proprietário do MV)
     return {"existe": True, "imagem": None}
 
 
@@ -135,18 +134,12 @@ def _tentar_base64(dados: bytes) -> bytes:
     return base64.b64decode(dados)
 
 
-# ---------------------------------------------------------------------------
-# INSERT / UPDATE
-# ---------------------------------------------------------------------------
-
-def salvar_assinatura(cd_prestador: int, img_bytes: bytes) -> str:
+def salvar_assinatura(cd_prestador: int, img_bytes: bytes, ambiente: str = "HML") -> str:
     """
-    Insere ou atualiza a assinatura gravando binário diretamente:
-      - ASSINATURA      (Long Raw) → bytes via DB_TYPE_LONG_RAW
-      - ASSINATURA_TISS (BLOB)     → bytes via DB_TYPE_BLOB
+    Insere ou atualiza a assinatura gravando binário diretamente.
     Retorna 'INSERT' ou 'UPDATE'.
     """
-    with conectar() as conn:
+    with conectar(ambiente) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT COUNT(1) FROM PRESTADOR_ASSINATURA WHERE CD_PRESTADOR = :cd",
